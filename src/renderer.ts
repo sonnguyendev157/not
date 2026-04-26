@@ -1,33 +1,79 @@
-/**
- * This file will automatically be loaded by vite and run in the "renderer" context.
- * To learn more about the differences between the "main" and the "renderer" context in
- * Electron, visit:
- *
- * https://electronjs.org/docs/tutorial/process-model
- *
- * By default, Node.js integration in this file is disabled. When enabling Node.js integration
- * in a renderer process, please be aware of potential security implications. You can read
- * more about security risks here:
- *
- * https://electronjs.org/docs/tutorial/security
- *
- * To enable Node.js integration in this file, open up `main.ts` and enable the `nodeIntegration`
- * flag:
- *
- * ```
- *  // Create the browser window.
- *  mainWindow = new BrowserWindow({
- *    width: 800,
- *    height: 600,
- *    webPreferences: {
- *      nodeIntegration: true
- *    }
- *  });
- * ```
- */
+import { EditorView, keymap } from "@codemirror/view";
+import { EditorState } from "@codemirror/state";
+import {
+  defaultKeymap,
+  historyKeymap,
+  history,
+  indentWithTab,
+} from "@codemirror/commands";
+import { markdown } from "@codemirror/lang-markdown";
+import { languages } from "@codemirror/language-data";
+import {
+  defaultHighlightStyle,
+  syntaxHighlighting,
+} from "@codemirror/language";
 
-import './index.css';
+// ── Debounce helper ───────────────────────────────────────
+function debounce<T extends (...args: unknown[]) => void>(
+  fn: T,
+  delay: number,
+) {
+  let timer: ReturnType<typeof setTimeout>;
+  return (...args: Parameters<T>) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), delay);
+  };
+}
 
-console.log(
-  '👋 This message is being logged by "renderer.ts", included via Vite',
-);
+// ── Auto-save ─────────────────────────────────────────────
+const saveNote = debounce((content: string) => {
+  console.log("saving...", content.slice(0, 30));
+  // Phần này sẽ gọi IPC sang main để lưu file
+  // window.electronAPI.saveNote(content)  ← implement sau
+}, 500);
+
+// ── Setup CodeMirror ──────────────────────────────────────
+const systemTheme = EditorView.theme({
+  "&": {
+    background: "transparent",
+    color: "CanvasText",
+  },
+  "&.cm-focused": {
+    outline: "none",
+  },
+  ".cm-content": {
+    caretColor: "CanvasText",
+    padding: "16px",
+  },
+});
+
+const darkModeSync = EditorView.theme({
+  "&": { colorScheme: "light dark" },
+});
+
+const state = EditorState.create({
+  doc: "",
+  extensions: [
+    systemTheme,
+    darkModeSync,
+
+    history(), // undo/redo
+    keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]), // shortcuts
+
+    markdown({ codeLanguages: languages }),
+    syntaxHighlighting(defaultHighlightStyle),
+    EditorView.lineWrapping,
+    EditorView.updateListener.of((update) => {
+      if (update.docChanged) {
+        saveNote(update.state.doc.toString());
+      }
+    }),
+  ],
+});
+
+const view = new EditorView({
+  state,
+  parent: document.getElementById("editor"),
+});
+
+view.focus();

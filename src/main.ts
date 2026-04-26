@@ -8,7 +8,8 @@ let mainWindow: BrowserWindow | null = null;
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 400,
-    height: 500,
+    height: 300,
+    vibrancy: "under-window",
     frame: false,
     resizable: false,
     show: false,
@@ -31,8 +32,15 @@ function createWindow() {
     );
   }
 
+  // Mở DevTools sau khi window load xong
+  mainWindow.webContents.on("did-finish-load", () => {
+    mainWindow?.webContents.openDevTools({ mode: "detach" });
+  });
+
   mainWindow.on("blur", () => {
-    mainWindow?.hide();
+    if (!mainWindow?.webContents.isDevToolsOpened()) {
+      mainWindow?.hide();
+    }
   });
 }
 
@@ -40,8 +48,6 @@ function createWindow() {
 
 function showPopup() {
   const { x, y } = tray.getBounds();
-  const { width, height } = mainWindow.getBounds();
-
   /*
              x
              ↓
@@ -51,7 +57,7 @@ function showPopup() {
           ↑
           x - (400/2) = x - 200
   */
-  mainWindow.setPosition(Math.round(x - width / 2), Math.round(y + 20));
+  mainWindow.setPosition(Math.round(x), Math.round(y + 35));
 
   mainWindow.show();
 }
